@@ -1,0 +1,87 @@
+<!-- please add lab_script.js and lab_style.css given in  the same folder you fined this file-->
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pentest Lab OS</title>
+  <link rel="stylesheet" href="lab_style.css">
+</head>
+<body>
+
+  <div class="layout">
+
+    <!-- Terminal + Score Display -->
+    <div class="main-panel">
+
+      <h2>💻 Pentest Lab OS</h2>
+
+      <div class="top-bar">
+        <div id="score">Score: 0</div>
+        <div id="level">Level: 1</div>
+      </div>
+
+      <div class="controls">
+        <button onclick="launchService('HTTP')">Start HTTP</button>
+        <button onclick="launchService('FTP')">Start FTP</button>
+        <button onclick="launchService('SSH')">Start SSH</button>
+        <button onclick="launchService('DB')">Start DB</button>
+        <button onclick="injectVuln('SQLi')">Inject SQLi</button>
+        <button onclick="injectVuln('XSS')">Inject XSS</button>
+        <button onclick="injectVuln('LFI')">Inject LFI</button>
+        <button onclick="injectVuln('CMD')">Inject CMD</button>
+        <button onclick="resetLab()">Reset Lab</button>
+      </div>
+
+      <div id="terminal-output"></div>
+      <input type="text" id="terminal-input" placeholder="Enter command (e.g. scan 80)" autocomplete="off" />
+
+    </div>
+
+    <!-- Right Side Panels -->
+    <div class="side-panel">
+
+      <!-- Fake Login Form (XSS/SQLi Target) -->
+      <div class="login-panel">
+        <h3>🔐 Target Login Portal</h3>
+        <form onsubmit="attackLogin(event)">
+          <input type="text" id="login-username" placeholder="Username" />
+          <input type="password" id="login-password" placeholder="Password" />
+          <button type="submit">Login</button>
+        </form>
+        <div id="login-result"></div>
+      </div>
+
+      <!-- Exploit Builder -->
+      <div class="exploit-panel">
+        <h3>🛠️ Exploit Builder</h3>
+        <select id="exploit-type">
+          <option value="SQLi">SQL Injection</option>
+          <option value="XSS">XSS</option>
+          <option value="LFI">LFI</option>
+          <option value="CMD">Command Injection</option>
+        </select>
+        <input type="text" id="exploit-target" placeholder="Target (e.g. HTTP)" />
+        <button onclick="runExploitBuilder()">Launch Exploit</button>
+        <div id="exploit-result"></div>
+      </div>
+
+      <!-- Challenge Tracker -->
+      <div class="challenge-panel">
+        <h3>🎯 Challenges</h3>
+        <ul id="challenge-list"></ul>
+      </div>
+
+      <!-- Log Viewer -->
+      <div class="log-panel">
+        <h3>📜 Action Log</h3>
+        <div id="log-output"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="lab_script.js"></script>
+</body>
+</html>
