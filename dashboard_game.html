@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Geometry Dash Ultimate</title>
+  <style>
+    /* === Reset & Base Styles === */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #001a33;
+      color: white;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+    button, select {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+    button {
+      background: #FFA500;
+      color: #001a33;
+      padding: 8px 16px;
+      margin: 6px 0;
+    }
+    select {
+      background: #222;
+      color: #fff;
+      padding: 6px 10px;
+      margin: 6px 0;
+    }
+
+    /* === Canvas & UI Panels === */
+    #gameCanvas {
+      display: block;
+      margin: 10px auto;
+      border: 2px solid #fff;
+      background: #001a33;
+      max-width: 100%;
+      height: 400px;
+    }
+    #uiInfo {
+      text-align: center;
+      margin: 4px 0;
+    }
+    #score, #highScore, #levelDisplay, #statsDisplay, #achievementPopup {
+      margin: 2px 0;
+    }
+
+    /* === Screens === */
+    .screen {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.9);
+      padding: 20px;
+      border: 2px solid white;
+      border-radius: 10px;
+      width: 320px;
+      text-align: center;
+      display: none;
+      z-index: 10;
+    }
+    #startScreen, #gameOverScreen, #settingsScreen, #levelSelectScreen {
+      /* all share same base .screen styles */
+    }
+    #achievementPopup {
+      position: absolute;
+      top: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,165,0,0.9);
+      padding: 10px 20px;
+      border-radius: 5px;
+      display: none;
+      z-index: 20;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    /* === Mobile Controls === */
+    .mobile-control {
+      display: none;
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
+    }
+    .mobile-control button {
+      width: 80px;
+      height: 50px;
+      font-size: 16px;
+    }
+    @media (max-width: 600px) {
+      .mobile-control { display: block; }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+
+<div id="uiInfo">
+  <h2 id="score">Score: 0</h2>
+  <h3 id="highScore">High Score: 0</h3>
+  <h3 id="levelDisplay">Level: 1</h3>
+  <h4 id="statsDisplay">Games: 0 | Deaths: 0 | Jumps: 0</h4>
+  <h3 id="pauseText" style="display:none;">PAUSED</h3>
+</div>
+
+<!-- Achievement Popup -->
+<div id="achievementPopup">Achievement Unlocked!</div>
+
+<!-- === Start Screen === -->
+<div id="startScreen" class="screen">
+  <h2>Geometry Dash Ultimate</h2>
+  <p>Press SPACE to jump. Triple-jump enabled.<br>Press P to pause/resume.</p>
+  <label for="skinSelect">Player Skin:</label><br>
+  <select id="skinSelect">
+    <option value="#FFA500">Orange</option>
+    <option value="#00FF00">Green</option>
+    <option value="#00FFFF">Cyan</option>
+    <option value="#FF00FF">Pink</option>
+    <option value="#FFFFFF">White</option>
+  </select><br>
+  <label for="difficultySelect">Difficulty:</label><br>
+  <select id="difficultySelect">
+    <option value="easy">Easy</option>
+    <option value="medium" selected>Medium</option>
+    <option value="hard">Hard</option>
+  </select><br>
+  <button id="levelSelectBtn">Choose Level</button><br>
+  <button id="settingsBtn">Settings</button><br>
+  <button id="startBtn">Start Game</button>
+</div>
+
+<!-- === Level Select Screen === -->
+<div id="levelSelectScreen" class="screen">
+  <h3>Select Level</h3>
+  <div id="levelButtons"></div>
+  <button id="levelSelectBack">Back</button>
+</div>
+
+<!-- === Settings Screen === -->
+<div id="settingsScreen" class="screen">
+  <h3>Settings</h3>
+  <label><input type="checkbox" id="toggleDayNight" checked> Enable Day/Night Cycle</label><br>
+  <label><input type="checkbox" id="toggleShield" checked> Enable Shield Power-up</label><br>
+  <label><input type="checkbox" id="toggleSlowMo" checked> Enable Slow-Motion</label><br>
+  <label><input type="checkbox" id="toggleDash" checked> Enable Dash Boost</label><br>
+  <button id="settingsBack">Back</button>
+</div>
+
+<!-- === Game Over Screen === -->
+<div id="gameOverScreen" class="screen">
+  <h2>Game Over</h2>
+  <p id="finalScore">Your Score: 0</p>
+  <h4>Top Scores</h4>
+  <div id="scoreBoard"></div>
+  <button id="restartBtn">Restart</button><br>
+  <button id="gameOverBack">Main Menu</button>
+</div>
+
+<!-- === Mobile Jump Button === -->
+<div class="mobile-control">
+  <button id="mobileJump">Jump</button>
+</div>
+
+<script>
+  // ===== GLOBAL VARIABLES =====
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
+
+  // UI Elements
+  const scoreEl = document.getElementById("score");
+  const highScoreEl = document.getElementById("highScore");
+  const levelDisplayEl = document.getElementById("levelDisplay");
+  const statsDisplayEl = document.getElementById("statsDisplay");
+  const pauseTextEl = document.getElementById("pauseText");
+  const achievementPopupEl = document.getElementById("achievementPopup");
+
+  const startScreen = document.getElementById("startScreen");
+  const startBtn = document.getElementById("startBtn");
+  const levelSelectBtn = document.getElementById("levelSelectBtn");
+  const settingsBtn = document.getElementById("settingsBtn");
+
+  const levelSelectScreen = document.getElementById("levelSelectScreen");
+  const levelButtonsContainer = document.getElementById("levelButtons");
+  const levelSelectBack = document.getElementById("levelSelectBack");
+
+  const settingsScreen = document.getElementById("settingsScreen");
+  const toggleDayNight = document.getElementById("toggleDayNight");
+  const toggleShield = document.getElementById("toggleShield");
+  const toggleSlowMo = document.getElementById("toggleSlowMo");
+  const toggleDash = document.getElementById("toggleDash");
+  const settingsBack = document.getElementById("settingsBack");
+
+  const gameOverScreen = document.getElementById("gameOverScreen");
+  const finalScoreEl = document.getElementById("finalScore");
+  const scoreBoardEl = document.getElementById("scoreBoard");
+  const restartBtn = document.getElementById("restartBtn");
+  const gameOverBack = document.getElementById("gameOverBack");
+
+  const skinSelect = document.getElementById("skinSelect");
+  const difficultySelect = document.getElementById("difficultySelect");
+  const mobileJumpBtn = document.getElementById("mobileJump");
+
+  // Game state
+  let player, velocityY, jumpCount, isOnGround;
+  let gravity, jumpPower, spikeSpeed, baseSpeed;
+  let score, highScore, levelIndex, frameCount;
+  let gameOver, paused;
+  let dayNightPhase = 0; // 0..1 cycle
+  let spikes = [], platforms = [], lasers = [], particles = [], powerUps = [];
+  let achievements = { firstJump: false, score500: false, score1000: false, tenJumps: false };
+  let stats = { gamesPlayed: 0, totalDeaths: 0, totalJumps: 0 };
+  let unlockedSkins = ["#FFA500"]; // default
+
+  // Level definitions (10 levels)
+  const levels = Array.from({ length: 10 }, (_, i) => ({
+    name: `Level ${i + 1}`,
+    patternSpikes: Array.from({ length: 12 }, () => Math.floor(Math.random() * 700) + 50),
+    patternPlatforms: Array.from({ length: 6 }, () => ({ x: Math.floor(Math.random() * 700) + 50, y: Math.floor(Math.random() * 200) + 100 })),
+    nextScore: (i + 1) * 800
+  }));
+
+  // ===== INITIAL SETUP =====
+  canvas.width = Math.min(window.innerWidth - 20, 800);
+  canvas.height = 400;
+  const groundY = canvas.height - 50;
+
+  // Load stats & high scores from localStorage
+  function loadStats() {
+    const savedStats = JSON.parse(localStorage.getItem("gdStats"));
+    if (savedStats) stats = savedStats;
+    highScore = localStorage.getItem("gdHighScore") || 0;
+    unlockedSkins = JSON.parse(localStorage.getItem("gdSkins")) || ["#FFA500"];
+  }
+  loadStats();
+  highScoreEl.textContent = `High Score: ${highScore}`;
+  updateStatsDisplay();
+
+  // Populate Level Buttons
+  levels.forEach((lvl, idx) => {
+    const btn = document.createElement("button");
+    btn.textContent = lvl.name;
+    btn.onclick = () => { selectLevel(idx); };
+    levelButtonsContainer.appendChild(btn);
+  });
+
+  // ===== EVENT LISTENERS =====
+  window.addEventListener("keydown", e => {
+    if (e.code === "Space") {
+      e.preventDefault();
+      attemptJump();
+    }
+    if (e.code === "KeyP") togglePause();
+    keys[e.code] = true;
+  });
+  window.addEventListener("keyup", e => keys[e.code] = false);
+
+  mobileJumpBtn.onclick = () => attemptJump();
+
+  levelSelectBtn.onclick = () => showScreen(levelSelectScreen);
+  levelSelectBack.onclick = () => showScreen(startScreen);
+
+  settingsBtn.onclick = () => showScreen(settingsScreen);
+  settingsBack.onclick = () => showScreen(startScreen);
+
+  startBtn.onclick = () => {
+    levelIndex = 0;
+    initGame();
+    hideAllScreens();
+    gameLoop();
+  };
+
+  restartBtn.onclick = () => {
+    initGame();
+    hideAllScreens();
+    gameLoop();
+  };
+  gameOverBack.onclick = () => { hideAllScreens(); showScreen(startScreen); };
+
+  // Difficulty & Skin changes apply on start
+
+  // Screen helper
+  function showScreen(el) {
+    hideAllScreens();
+    el.style.display = "block";
+  }
+  function hideAllScreens() {
+    [startScreen, levelSelectScreen, settingsScreen, gameOverScreen].forEach(el => el.style.display = "none");
+  }
+  showScreen(startScreen);
+
+  // ===== KEY STATE =====
+  const keys = {};
+
+  // ===== INITIALIZE / RESET GAME =====
+  function initGame() {
+    stats.gamesPlayed++;
+    saveStats();
+
+    player = {
+      x: 100,
+      y: groundY,
+      width: 40,
+      height: 40,
+      color: skinSelect.value
+    };
+    velocityY = 0;
+    jumpCount = 0;
+    isOnGround = true;
+
+    // Set difficulty
+    const diff = difficultySelect.value;
+    if (diff === "easy") {
+      gravity = 0.6; jumpPower = -10; baseSpeed = 3;
+    } else if (diff === "hard") {
+      gravity = 1.0; jumpPower = -14; baseSpeed = 6;
+    } else {
+      gravity = 0.8; jumpPower = -12; baseSpeed = 4;
+    }
+    spikeSpeed = baseSpeed;
+    frameCount = 0;
+    score = 0;
+    gameOver = false;
+    paused = false;
+    spikes = [];
+    platforms = [];
+    lasers = [];
+    particles = [];
+    powerUps = [];
+    resetAchievements();
+
+    // Level-specific
+    score = 0;
+    spikes = [];
+    platforms = levels[levelIndex].patternPlatforms.map(p => ({ x: p.x, y: p.y, width: 80, height: 10, fallen: false }));
+    lasers = [];
+    powerUps = [];
+    dayNightPhase = 0;
+
+    scoreEl.textContent = `Score: ${score}`;
+    highScoreEl.textContent = `High Score: ${highScore}`;
+    levelDisplayEl.textContent = levels[levelIndex].name;
+    updateStatsDisplay();
+  }
+
+  // ===== GAME LOOP =====
+  function gameLoop() {
+    if (gameOver || paused) return;
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+  }
+
+  // ===== UPDATE LOGIC =====
+  function update() {
+    frameCount++;
+    // Day/Night cycle
+    if (toggleDayNight.checked) {
+      dayNightPhase = (dayNightPhase + 0.001) % 1;
+      updateBackground();
+    }
+
+    // Apply gravity
+    velocityY += gravity;
+    player.y += velocityY;
+    if (player.y >= groundY) {
+      player.y = groundY;
+      velocityY = 0;
+      jumpCount = 0;
+      isOnGround = true;
+    } else {
+      isOnGround = false;
+    }
+
+    // Progressive speed
+    if (score % 500 === 0 && score > 0) spikeSpeed = baseSpeed + Math.floor(score / 500) * 0.5;
+
+    // Spawn spikes
+    if (levels[levelIndex].patternSpikes.includes(frameCount % 800)) {
+      const moving = Math.random() < 0.3;
+      spikes.push({ x: canvas.width + 20, y: groundY + 10, width: 20, height: 30, dy: moving ? 2 : 0, dir: 1 });
+    }
+
+    // Spawn lasers every 2000 points
+    if (toggleSlowMo.checked && score % 2000 === 0 && score > 0) {
+      lasers.push({ x: canvas.width, y: groundY - 100, width: 10, height: 100 });
+    }
+
+    // Spawn power-ups
+    if (toggleShield.checked && score % 1500 === 0 && score > 0) {
+      powerUps.push({ x: canvas.width + 20, y: groundY - 30, size: 20, type: "shield" });
+    }
+    if (toggleSlowMo.checked && score % 1800 === 0 && score > 0) {
+      powerUps.push({ x: canvas.width + 20, y: groundY - 30, size: 20, type: "slowmo" });
+    }
+    if (toggleDash.checked && score % 2200 === 0 && score > 0) {
+      powerUps.push({ x: canvas.width + 20, y: groundY - 30, size: 20, type: "dash" });
+    }
+
+    // Update spikes
+    spikes.forEach((s, i) => {
+      s.x -= spikeSpeed;
+      if (s.dy) {
+        s.y += s.dir * s.dy;
+        if (s.y < groundY - 60 || s.y > groundY + 10) s.dir *= -1;
+      }
+      if (s.x + s.width < 0) spikes.splice(i, 1);
+    });
+
+    // Update lasers
+    lasers.forEach((l, i) => {
+      l.x -= spikeSpeed * 1.5;
+      if (l.x + l.width < 0) lasers.splice(i, 1);
+    });
+
+    // Update platforms
+    platforms.forEach(p => {
+      if (p.fallen) {
+        p.y += 5;
+      }
+      // Check if player lands on platform
+      if (!p.fallen &&
+          player.x < p.x + p.width &&
+          player.x + player.width > p.x &&
+          player.y + player.height >= p.y &&
+          player.y + player.height <= p.y + 10 &&
+          velocityY > 0) {
+        player.y = p.y - player.height;
+        velocityY = 0;
+        jumpCount = 0;
+        isOnGround = true;
+        p.fallen = true;
+      }
+      p.x -= spikeSpeed;
+    });
+    platforms = platforms.filter(p => p.y < canvas.height);
+
+    // Update power-ups
+    powerUps.forEach((pu, i) => {
+      pu.x -= spikeSpeed;
+      if (pu.x + pu.size < 0) powerUps.splice(i, 1);
+      // Collision with player
+      if (player.x < pu.x + pu.size &&
+          player.x + player.width > pu.x &&
+          player.y < pu.y + pu.size &&
+          player.y + player.height > pu.y) {
+        activatePowerUp(pu.type);
+        powerUps.splice(i, 1);
+      }
+    });
+
+    // Update particles
+    particles.forEach((p, i) => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life--;
+      if (p.life <= 0) particles.splice(i, 1);
+    });
+
+    // Collision checks
+    // Spikes
+    for (let s of spikes) {
+      if (rectCollision(player, s)) {
+        if (player.shield) {
+          player.shield = false;
+        } else {
+          triggerDeath();
+          return;
+        }
+      }
+    }
+    // Lasers
+    for (let l of lasers) {
+      if (rectCollision(player, l)) {
+        if (player.shield) {
+          player.shield = false;
+        } else {
+          triggerDeath();
+          return;
+        }
+      }
+    }
+
+    // Scoring
+    score++;
+    scoreEl.textContent = `Score: ${score}`;
+    checkAchievements();
+    if (score > highScore) {
+      highScore = score;
+      localStorage.setItem("gdHighScore", highScore);
+      highScoreEl.textContent = `High Score: ${highScore}`;
+    }
+
+    // Level progression
+    if (score >= levels[levelIndex].nextScore && levelIndex < levels.length - 1) {
+      levelIndex++;
+      frameCount = 0;
+      spikes = [];
+      lasers = [];
+      platforms = levels[levelIndex].patternPlatforms.map(p => ({ x: p.x, y: p.y, width: 80, height: 10, fallen: false }));
+      powerUps = [];
+      levelDisplayEl.textContent = levels[levelIndex].name;
+    }
+  }
+
+  // ===== DRAW LOGIC =====
+  function draw() {
+    // Clear
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Background (day/night gradient)
+    drawBackground();
+
+    // Ground
+    ctx.fillStyle = "#444";
+    ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+
+    // Draw platforms
+    platforms.forEach(p => {
+      ctx.fillStyle = "#555";
+      ctx.fillRect(p.x, p.y, p.width, p.height);
+    });
+
+    // Draw power-ups
+    powerUps.forEach(pu => {
+      if (pu.type === "shield") ctx.fillStyle = "#00FFFF";
+      if (pu.type === "slowmo") ctx.fillStyle = "#FFFF00";
+      if (pu.type === "dash") ctx.fillStyle = "#FF00FF";
+      ctx.fillRect(pu.x, pu.y, pu.size, pu.size);
+    });
+
+    // Draw spikes
+    spikes.forEach(s => {
+      ctx.fillStyle = "#FF3333";
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y + s.height);
+      ctx.lineTo(s.x + s.width / 2, s.y);
+      ctx.lineTo(s.x + s.width, s.y + s.height);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    // Draw lasers
+    lasers.forEach(l => {
+      ctx.fillStyle = "#FF0000";
+      ctx.fillRect(l.x, l.y, l.width, l.height);
+    });
+
+    // Draw player with glow if shield
+    if (player.shield) {
+      ctx.shadowColor = "#00FFFF";
+      ctx.shadowBlur = 15;
+    } else {
+      ctx.shadowBlur = 0;
+    }
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    ctx.shadowBlur = 0;
+
+    // Draw particle trails
+    particles.forEach(p => {
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, p.size, p.size);
+    });
+  }
+
+  // ===== HELPER FUNCTIONS =====
+  function rectCollision(a, b) {
+    return a.x < b.x + b.width &&
+           a.x + a.width > b.x &&
+           a.y < b.y + b.height &&
+           a.y + a.height > b.y;
+  }
+
+  function attemptJump() {
+    if (gameOver || paused) return;
+    if (isOnGround || jumpCount < 2) {
+      velocityY = jumpPower;
+      jumpCount++;
+      isOnGround = false;
+      stats.totalJumps++;
+      saveStats();
+      spawnJumpParticles();
+      if (!achievements.firstJump) {
+        unlockAchievement("firstJump", "First Jump!");
+      }
+      if (stats.totalJumps >= 10 && !achievements.tenJumps) {
+        unlockAchievement("tenJumps", "Ten Jumps!");
+      }
+    }
+  }
+
+  function spawnJumpParticles() {
+    for (let i = 0; i < 10; i++) {
+      particles.push({
+        x: player.x + player.width / 2,
+        y: player.y + player.height,
+        vx: (Math.random() - 0.5) * 3,
+        vy: -Math.random() * 2 - 1,
+        size: 3,
+        life: 30,
+        color: player.color
+      });
+    }
+  }
+
+  function activatePowerUp(type) {
+    if (type === "shield") {
+      player.shield = true;
+      setTimeout(() => { player.shield = false; }, 5000);
+      unlockAchievement("powerShield", "Shield Activated!");
+    }
+    if (type === "slowmo") {
+      spikeSpeed /= 2;
+      setTimeout(() => { spikeSpeed *= 2; }, 4000);
+      unlockAchievement("powerSlow", "Slow-Motion!");
+    }
+    if (type === "dash") {
+      player.x += 100;
+      unlockAchievement("powerDash", "Dashed Forward!");
+    }
+  }
+
+  function triggerDeath() {
+    gameOver = true;
+    stats.totalDeaths++;
+    saveStats();
+    finalScoreEl.textContent = `Your Score: ${score}`;
+    updateScoreBoard();
+    showScreen(gameOverScreen);
+  }
+
+  function togglePause() {
+    if (gameOver || startScreen.style.display !== "none") return;
+    paused = !paused;
+    pauseTextEl.style.display = paused ? "block" : "none";
+    if (!paused) gameLoop();
+  }
+
+  function updateBackground() {
+    // dayNightPhase goes 0→1. 0 = midnight, .5 = noon
+    const t = Math.sin(dayNightPhase * Math.PI);
+    const r = Math.floor(20 + 50 * t);
+    const g = Math.floor(26 + 80 * t);
+    const b = Math.floor(51 + 150 * t);
+    document.body.style.background = `rgb(${r},${g},${b})`;
+    canvas.style.background = `rgba(${r},${g},${b},1)`;
+  }
+
+  function drawBackground() {
+    // subtle gradient
+    const t = Math.sin(dayNightPhase * Math.PI);
+    const topColor = `rgba(${20 + 50 * t},${26 + 80 * t},${51 + 150 * t},1)`;
+    const botColor = `rgba(${10 + 30 * t},${13 + 40 * t},${25 + 100 * t},1)`;
+    const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grd.addColorStop(0, topColor);
+    grd.addColorStop(1, botColor);
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function selectLevel(idx) {
+    levelIndex = idx;
+    initGame();
+    hideAllScreens();
+    gameLoop();
+  }
+
+  // ===== ACHIEVEMENTS & STATS =====
+  function resetAchievements() {
+    achievements = { firstJump: false, score500: false, score1000: false, tenJumps: false, powerShield: false, powerSlow: false, powerDash: false };
+  }
+
+  function unlockAchievement(key, message) {
+    if (!achievements[key]) {
+      achievements[key] = true;
+      showAchievement(message);
+      saveStats();
+    }
+  }
+
+  function showAchievement(text) {
+    achievementPopupEl.textContent = text;
+    achievementPopupEl.style.display = "block";
+    setTimeout(() => { achievementPopupEl.style.display = "none"; }, 2000);
+  }
+
+  function checkAchievements() {
+    if (score >= 500 && !achievements.score500) unlockAchievement("score500", "Score 500!");
+    if (score >= 1000 && !achievements.score1000) unlockAchievement("score1000", "Score 1000!");
+    // Unlock new skins based on achievements
+    if (achievements.score500 && !unlockedSkins.includes("#FFD700")) {
+      unlockedSkins.push("#FFD700"); // Gold skin
+      saveSkins();
+      showAchievement("Gold Skin Unlocked!");
+    }
+    if (achievements.score1000 && !unlockedSkins.includes("#FF4500")) {
+      unlockedSkins.push("#FF4500"); // OrangeRed skin
+      saveSkins();
+      showAchievement("OrangeRed Skin Unlocked!");
+    }
+    // Update skin options
+    skinSelect.innerHTML = unlockedSkins.map(c => `<option value="${c}">${c}</option>`).join("");
+  }
+
+  function updateStatsDisplay() {
+    statsDisplayEl.textContent = `Games: ${stats.gamesPlayed} | Deaths: ${stats.totalDeaths} | Jumps: ${stats.totalJumps}`;
+  }
+
+  function saveStats() {
+    localStorage.setItem("gdStats", JSON.stringify(stats));
+  }
+
+  function saveSkins() {
+    localStorage.setItem("gdSkins", JSON.stringify(unlockedSkins));
+  }
+
+  // ===== SCOREBOARD =====
+  function updateScoreBoard() {
+    let board = JSON.parse(localStorage.getItem("gdScores")) || [];
+    board.push({ score, date: new Date().toLocaleDateString() });
+    board.sort((a, b) => b.score - a.score);
+    board = board.slice(0, 5);
+    localStorage.setItem("gdScores", JSON.stringify(board));
+
+    scoreBoardEl.innerHTML = "";
+    board.forEach((entry, i) => {
+      const div = document.createElement("div");
+      div.textContent = `${i + 1}. ${entry.score} (${entry.date})`;
+      scoreBoardEl.appendChild(div);
+    });
+  }
+
+  // ===== WINDOW RESIZE HANDLING =====
+  window.addEventListener("resize", () => {
+    canvas.width = Math.min(window.innerWidth - 20, 800);
+    canvas.height = 400;
+  });
+</script>
+</body>
+</html>
